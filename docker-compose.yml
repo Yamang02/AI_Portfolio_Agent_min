@@ -1,0 +1,13 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app
+    environment:
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - MODEL_NAME=${MODEL_NAME:-llama3:8b}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
