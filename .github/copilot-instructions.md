@@ -1,6 +1,6 @@
-# CLAUDE.md
+# GitHub Copilot Instructions
 
-This file is the entry point for Claude Code agents working on this project.
+This file is the entry point for GitHub Copilot agents working on this project.
 
 Before starting any task, read in order:
 
