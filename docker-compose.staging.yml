@@ -1,6 +1,6 @@
 services:
   fastapi:
-    image: ghcr.io/your-org/local-llm-server:staging
+    image: ghcr.io/yamang02/ai_portfolio_agent_min:staging
     ports:
       - "8001:8000"
     env_file: .env.staging
