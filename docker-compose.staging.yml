@@ -1,0 +1,9 @@
+services:
+  fastapi:
+    image: ghcr.io/your-org/local-llm-server:staging
+    ports:
+      - "8001:8000"
+    env_file: .env.staging
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

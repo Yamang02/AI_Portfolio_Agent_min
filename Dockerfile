@@ -1,16 +1,14 @@
-FROM python:3.11-slim
-
+FROM python:3.12-slim AS base
 WORKDIR /app
-
-# Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# test stage: CI에서 이미지 빌드 전 테스트 실행용
+FROM base AS test
+COPY . .
+RUN pytest tests/
+
+# production stage: 실제 배포 이미지
+FROM base AS production
 COPY app/ ./app/
-
-# Expose port
-EXPOSE 8000
-
-# Run with hot reload for development
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

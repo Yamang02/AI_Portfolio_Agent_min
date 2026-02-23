@@ -1,0 +1,9 @@
+services:
+  fastapi:
+    image: ghcr.io/your-org/local-llm-server:sha-{hash}
+    ports:
+      - "8000:8000"
+    env_file: .env.production
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
