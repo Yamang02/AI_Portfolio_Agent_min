@@ -12,6 +12,13 @@
 
 chore: add Dockerfile and Docker Compose for all environments
 
+## Environment
+
+Mac Mini M4 (macOS) + OrbStack으로 컨테이너를 관리한다.
+OrbStack은 macOS에서 `host.docker.internal`을 자동으로 제공하므로
+`extra_hosts: host.docker.internal:host-gateway` 설정이 불필요하다.
+(해당 설정은 Linux Docker에서만 필요한 workaround다.)
+
 ## Implementation
 
 ### Dockerfile
@@ -47,8 +54,6 @@ services:
     volumes:
       - ./app:/app/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 ```
 
@@ -61,8 +66,6 @@ services:
     ports:
       - "8001:8000"
     env_file: .env.staging
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 ```
 
@@ -70,7 +73,6 @@ services:
 
 이미지 태그는 `:latest`를 사용하지 않는다.
 CI가 배포 시점에 `sha-{github.sha}` 태그로 이 파일을 갱신해서 서버로 전달한다.
-불변 태그를 사용해야 "어떤 버전이 떠 있는지" 명확하게 추적할 수 있다.
 
 ```yaml
 services:
@@ -79,8 +81,6 @@ services:
     ports:
       - "8000:8000"
     env_file: .env.production
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 ```
 
@@ -99,22 +99,19 @@ docs/
 
 ## Notes
 
-### host.docker.internal 플랫폼 차이
+### host.docker.internal
 
-`host.docker.internal`은 컨테이너에서 Mac Mini 호스트의 Ollama(`localhost:11434`)에 접근하기 위한 hostname이다.
+OrbStack(macOS)에서는 컨테이너가 호스트(Mac Mini)의 Ollama(`localhost:11434`)에
+`host.docker.internal:11434`로 접근할 수 있다. 별도 설정 불필요.
 
-| 플랫폼 | 동작 |
-|--------|------|
-| macOS Docker Desktop | 자동 제공, `extra_hosts` 불필요 |
-| Linux (Mac Mini 실제 환경) | 자동 제공되지 않음. `extra_hosts: host.docker.internal:host-gateway` 필수 |
-
-Mac Mini는 Linux이므로 모든 Compose 파일에 `extra_hosts` 명시가 필요하다.
+Linux Docker라면 `extra_hosts: - "host.docker.internal:host-gateway"` 추가가 필요하지만
+현재 환경(Mac Mini + OrbStack)에서는 해당 없다.
 
 ### 헬스 엔드포인트
 
 현재 `/health`는 앱 프로세스 생존만 확인한다.
 Ollama 연결까지 확인하는 `/health/ready`는 다음 epic(Ollama 가용성 처리)에서 다룬다.
-CI 배포 헬스체크는 `/health`(빠른 liveness)를 사용한다.
+CI 배포 헬스체크는 `/health`를 사용한다.
 
 ### 리소스 제한
 
@@ -133,7 +130,7 @@ docker compose -f docker-compose.local.yml up
 - [ ] `docker compose -f docker-compose.local.yml up` 으로 로컬 서버 실행
 - [ ] 로컬: 코드 변경 시 자동 reload 동작
 - [ ] staging/prod: `image` 기반으로 실행 (build 없음)
-- [ ] prod Compose 파일의 이미지 태그가 `:sha-{hash}` 형식
+- [ ] prod Compose 파일의 이미지 태그가 `sha-{hash}` 형식
 - [ ] 컨테이너 내부에서 `host.docker.internal:11434`로 Ollama 호출 성공
 - [ ] Mac Mini 재부팅 후 staging/prod 컨테이너 자동 재시작 (`restart: unless-stopped`)
 - [ ] `/health` 엔드포인트 응답 확인
