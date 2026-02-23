@@ -1,118 +1,139 @@
-# Phase 2: macOS launchd Service Setup
+# Phase 2: Dockerfile & Docker Compose
 
 ## Scope
 
-- `deploy/launchd/` 디렉토리에 staging/prod용 launchd plist 파일 생성
-- 각 서비스는 Mac Mini 재부팅 시 자동 시작
-- staging: port 8001, production: port 8000
+- `Dockerfile` 작성 (멀티스테이지: test / production)
+- `docker-compose.local.yml` - hot reload, volume mount
+- `docker-compose.staging.yml` - staging 컨테이너 (port 8001)
+- `docker-compose.prod.yml` - prod 컨테이너 (port 8000)
+- `.dockerignore` 작성
 
 ## Commit
 
-chore: add launchd plists for staging and prod FastAPI services
+chore: add Dockerfile and Docker Compose for all environments
 
 ## Implementation
 
-파일 위치: `deploy/launchd/`
+### Dockerfile
 
-```
-deploy/launchd/
-├── com.llm-server.staging.plist
-├── com.llm-server.prod.plist
-└── README.md
-```
+```dockerfile
+FROM python:3.12-slim AS base
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-`com.llm-server.staging.plist`:
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.llm-server.staging</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/path/to/venv/bin/uvicorn</string>
-        <string>app.main:app</string>
-        <string>--host</string>
-        <string>0.0.0.0</string>
-        <string>--port</string>
-        <string>8001</string>
-    </array>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>APP_ENV</key>
-        <string>staging</string>
-    </dict>
-    <key>WorkingDirectory</key>
-    <string>/path/to/local-llm-server</string>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/var/log/llm-server-staging.log</string>
-    <key>StandardErrorPath</key>
-    <string>/var/log/llm-server-staging.err</string>
-</dict>
-</plist>
+# test stage: CI에서 이미지 빌드 전 테스트 실행용
+FROM base AS test
+COPY . .
+RUN pytest tests/
+
+# production stage: 실제 배포 이미지
+FROM base AS production
+COPY app/ ./app/
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-`com.llm-server.prod.plist`:
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.llm-server.prod</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/path/to/venv/bin/uvicorn</string>
-        <string>app.main:app</string>
-        <string>--host</string>
-        <string>0.0.0.0</string>
-        <string>--port</string>
-        <string>8000</string>
-    </array>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>APP_ENV</key>
-        <string>production</string>
-    </dict>
-    <key>WorkingDirectory</key>
-    <string>/path/to/local-llm-server</string>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/var/log/llm-server-prod.log</string>
-    <key>StandardErrorPath</key>
-    <string>/var/log/llm-server-prod.err</string>
-</dict>
-</plist>
+### docker-compose.local.yml
+
+```yaml
+services:
+  fastapi:
+    build:
+      context: .
+      target: production
+    ports:
+      - "8000:8000"
+    env_file: .env.local
+    volumes:
+      - ./app:/app/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
 ```
 
-설치 명령 (README.md에도 기재):
+### docker-compose.staging.yml
+
+```yaml
+services:
+  fastapi:
+    image: ghcr.io/{owner}/local-llm-server:staging
+    ports:
+      - "8001:8000"
+    env_file: .env.staging
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+```
+
+### docker-compose.prod.yml
+
+이미지 태그는 `:latest`를 사용하지 않는다.
+CI가 배포 시점에 `sha-{github.sha}` 태그로 이 파일을 갱신해서 서버로 전달한다.
+불변 태그를 사용해야 "어떤 버전이 떠 있는지" 명확하게 추적할 수 있다.
+
+```yaml
+services:
+  fastapi:
+    image: ghcr.io/{owner}/local-llm-server:sha-{hash}  # CI가 치환
+    ports:
+      - "8000:8000"
+    env_file: .env.production
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+```
+
+### .dockerignore
+
+```
+.env*
+venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.git/
+memory-bank/
+docs/
+```
+
+## Notes
+
+### host.docker.internal 플랫폼 차이
+
+`host.docker.internal`은 컨테이너에서 Mac Mini 호스트의 Ollama(`localhost:11434`)에 접근하기 위한 hostname이다.
+
+| 플랫폼 | 동작 |
+|--------|------|
+| macOS Docker Desktop | 자동 제공, `extra_hosts` 불필요 |
+| Linux (Mac Mini 실제 환경) | 자동 제공되지 않음. `extra_hosts: host.docker.internal:host-gateway` 필수 |
+
+Mac Mini는 Linux이므로 모든 Compose 파일에 `extra_hosts` 명시가 필요하다.
+
+### 헬스 엔드포인트
+
+현재 `/health`는 앱 프로세스 생존만 확인한다.
+Ollama 연결까지 확인하는 `/health/ready`는 다음 epic(Ollama 가용성 처리)에서 다룬다.
+CI 배포 헬스체크는 `/health`(빠른 liveness)를 사용한다.
+
+### 리소스 제한
+
+컨테이너 CPU/메모리 제한은 현 단계에서 적용하지 않는다.
+Mac Mini 리소스의 대부분을 Ollama가 사용하며, FastAPI 컨테이너는 경량이다.
+실측 데이터가 생기면 별도로 추가한다.
+
+### 로컬 실행
+
 ```bash
-# /path/to를 실제 경로로 치환 후
-cp deploy/launchd/com.llm-server.staging.plist ~/Library/LaunchAgents/
-cp deploy/launchd/com.llm-server.prod.plist ~/Library/LaunchAgents/
-
-launchctl load ~/Library/LaunchAgents/com.llm-server.staging.plist
-launchctl load ~/Library/LaunchAgents/com.llm-server.prod.plist
-
-# 상태 확인
-launchctl list | grep llm-server
+docker compose -f docker-compose.local.yml up
 ```
 
 ## Acceptance Criteria
 
-- [ ] `deploy/launchd/com.llm-server.staging.plist` 존재
-- [ ] `deploy/launchd/com.llm-server.prod.plist` 존재
-- [ ] `deploy/launchd/README.md`에 설치/제거/상태 확인 명령 기재
-- [ ] staging 서비스가 port 8001에서 `APP_ENV=staging`으로 동작
-- [ ] prod 서비스가 port 8000에서 `APP_ENV=production`으로 동작
-- [ ] Mac Mini 재부팅 후 두 서비스 자동 시작 확인
+- [ ] `docker compose -f docker-compose.local.yml up` 으로 로컬 서버 실행
+- [ ] 로컬: 코드 변경 시 자동 reload 동작
+- [ ] staging/prod: `image` 기반으로 실행 (build 없음)
+- [ ] prod Compose 파일의 이미지 태그가 `:sha-{hash}` 형식
+- [ ] 컨테이너 내부에서 `host.docker.internal:11434`로 Ollama 호출 성공
+- [ ] Mac Mini 재부팅 후 staging/prod 컨테이너 자동 재시작 (`restart: unless-stopped`)
+- [ ] `/health` 엔드포인트 응답 확인

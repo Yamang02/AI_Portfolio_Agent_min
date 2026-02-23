@@ -27,9 +27,11 @@ env/
 .venv/
 
 # Environment Variables
+# .env.example은 git에 포함되어야 함 (템플릿)
+# .env.* (local, staging, production 등) 은 배포 시 서버에서 생성되어 제외
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # IDE
 .vscode/
