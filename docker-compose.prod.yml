@@ -1,6 +1,6 @@
 services:
   fastapi:
-    image: ghcr.io/your-org/local-llm-server:sha-{hash}
+    image: ghcr.io/yamang02/ai_portfolio_agent_min:sha-{hash}
     ports:
       - "8000:8000"
     env_file: .env.production

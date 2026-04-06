@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -37,6 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       sha_tag: ${{ steps.meta.outputs.sha_tag }}
+      image_name: ${{ steps.meta.outputs.image_name }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
@@ -47,18 +52,18 @@ jobs:
       - name: Set image tags
         id: meta
         run: |
+          IMAGE_NAME="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
           SHA_TAG="sha-${{ github.sha }}"
-          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "image_name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
           echo "sha_tag=${SHA_TAG}" >> $GITHUB_OUTPUT
-          echo "repo_lower=${REPO_LOWER}" >> $GITHUB_OUTPUT
       - uses: docker/build-push-action@v5
         with:
           context: .
           target: production
           push: true
           tags: |
-            ghcr.io/${{ steps.meta.outputs.repo_lower }}:latest
-            ghcr.io/${{ steps.meta.outputs.repo_lower }}:${{ steps.meta.outputs.sha_tag }}
+            ${{ steps.meta.outputs.image_name }}:latest
+            ${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.sha_tag }}
 
   deploy:
     needs: build-and-push
@@ -95,7 +100,7 @@ jobs:
           username: ${{ vars.MACMINI_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            sed -i "s|image: ghcr.io/.*/local-llm-server:.*|image: ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]'):${{ needs.build-and-push.outputs.sha_tag }}|" \
+            sed -i "s|image: ghcr.io/.*/ai_portfolio_agent_min:.*|image: ${{ needs.build-and-push.outputs.image_name }}:${{ needs.build-and-push.outputs.sha_tag }}|" \
               ~/local-llm-server/docker-compose.prod.yml
 
       - name: Deploy
