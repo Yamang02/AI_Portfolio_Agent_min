@@ -84,7 +84,7 @@ jobs:
           username: ${{ vars.MACMINI_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cat > ~/Projects/local-llm-server/.env.production << EOF
+            cat > ${{ vars.DEPLOY_DIR }}/.env.production << EOF
             APP_ENV=production
             OLLAMA_URL=http://host.docker.internal:11434
             MODEL_NAME=${{ vars.MODEL_NAME }}
@@ -101,7 +101,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             sed -i "s|image: ghcr.io/.*/ai_portfolio_agent_min:.*|image: ${{ needs.build-and-push.outputs.image_name }}:${{ needs.build-and-push.outputs.sha_tag }}|" \
-              ~/Projects/local-llm-server/docker-compose.prod.yml
+              ${{ vars.DEPLOY_DIR }}/docker-compose.prod.yml
 
       - name: Deploy
         uses: appleboy/ssh-action@v1.0.3
@@ -110,7 +110,7 @@ jobs:
           username: ${{ vars.MACMINI_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ~/Projects/local-llm-server
+            cd ${{ vars.DEPLOY_DIR }}
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
             docker image prune -f
