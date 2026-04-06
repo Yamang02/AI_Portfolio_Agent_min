@@ -48,15 +48,17 @@ jobs:
         id: meta
         run: |
           SHA_TAG="sha-${{ github.sha }}"
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "sha_tag=${SHA_TAG}" >> $GITHUB_OUTPUT
+          echo "repo_lower=${REPO_LOWER}" >> $GITHUB_OUTPUT
       - uses: docker/build-push-action@v5
         with:
           context: .
           target: production
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:staging
-            ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.sha_tag }}
+            ghcr.io/${{ steps.meta.outputs.repo_lower }}:staging
+            ghcr.io/${{ steps.meta.outputs.repo_lower }}:${{ steps.meta.outputs.sha_tag }}
 
   deploy:
     needs: build-and-push
