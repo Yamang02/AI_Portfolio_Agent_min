@@ -77,6 +77,23 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
+      - name: Ensure runtime directory on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.MACMINI_TAILSCALE_IP }}
+          username: ${{ vars.MACMINI_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: mkdir -p ~/Projects/ai_portfolio_agent_min
+
+      - name: Sync compose manifests
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ vars.MACMINI_TAILSCALE_IP }}
+          username: ${{ vars.MACMINI_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.staging.yml,docker-compose.prod.yml"
+          target: Projects/ai_portfolio_agent_min/
+
       - name: Write env file
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -84,7 +101,7 @@ jobs:
           username: ${{ vars.MACMINI_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cat > ~/Projects/local-llm-server/.env.production << EOF
+            cat > ~/Projects/ai_portfolio_agent_min/.env.production << EOF
             APP_ENV=production
             OLLAMA_URL=http://host.docker.internal:11434
             MODEL_NAME=${{ vars.MODEL_NAME }}
@@ -100,8 +117,8 @@ jobs:
           username: ${{ vars.MACMINI_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            sed -i "s|image: ghcr.io/.*/ai_portfolio_agent_min:.*|image: ${{ needs.build-and-push.outputs.image_name }}:${{ needs.build-and-push.outputs.sha_tag }}|" \
-              ~/Projects/local-llm-server/docker-compose.prod.yml
+            sed -i "" "s|image: ghcr.io/.*/ai_portfolio_agent_min:.*|image: ${{ needs.build-and-push.outputs.image_name }}:${{ needs.build-and-push.outputs.sha_tag }}|" \
+              ~/Projects/ai_portfolio_agent_min/docker-compose.prod.yml
 
       - name: Deploy
         uses: appleboy/ssh-action@v1.0.3
@@ -110,7 +127,7 @@ jobs:
           username: ${{ vars.MACMINI_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ~/Projects/local-llm-server
+            cd ~/Projects/ai_portfolio_agent_min
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
             docker image prune -f

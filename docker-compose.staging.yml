@@ -1,3 +1,5 @@
+name: ai_portfolio_agent_min
+
 services:
   fastapi:
     image: ghcr.io/yamang02/ai_portfolio_agent_min:staging

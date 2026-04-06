@@ -76,6 +76,23 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
+      - name: Ensure runtime directory on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.MACMINI_TAILSCALE_IP }}
+          username: ${{ vars.MACMINI_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: mkdir -p ~/Projects/ai_portfolio_agent_min
+
+      - name: Sync compose manifests
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ vars.MACMINI_TAILSCALE_IP }}
+          username: ${{ vars.MACMINI_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.staging.yml,docker-compose.prod.yml"
+          target: Projects/ai_portfolio_agent_min/
+
       - name: Write env file
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -83,7 +100,7 @@ jobs:
           username: ${{ vars.MACMINI_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cat > ~/Projects/local-llm-server/.env.staging << EOF
+            cat > ~/Projects/ai_portfolio_agent_min/.env.staging << EOF
             APP_ENV=staging
             OLLAMA_URL=http://host.docker.internal:11434
             MODEL_NAME=${{ vars.MODEL_NAME }}
@@ -99,7 +116,7 @@ jobs:
           username: ${{ vars.MACMINI_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ~/Projects/local-llm-server
+            cd ~/Projects/ai_portfolio_agent_min
             docker compose -f docker-compose.staging.yml pull
             docker compose -f docker-compose.staging.yml up -d
             docker image prune -f
