@@ -83,7 +83,7 @@ jobs:
           username: ${{ vars.MACMINI_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cat > ~/local-llm-server/.env.staging << EOF
+            cat > ~/Projects/local-llm-server/.env.staging << EOF
             APP_ENV=staging
             OLLAMA_URL=http://host.docker.internal:11434
             MODEL_NAME=${{ vars.MODEL_NAME }}
@@ -99,7 +99,7 @@ jobs:
           username: ${{ vars.MACMINI_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ~/local-llm-server
+            cd ~/Projects/local-llm-server
             docker compose -f docker-compose.staging.yml pull
             docker compose -f docker-compose.staging.yml up -d
             docker image prune -f
